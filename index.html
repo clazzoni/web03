@@ -1,9 +1,9 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Time Display</title>
+    <title>Time, Weather, and Stock Display</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -16,30 +16,65 @@
         }
         .container {
             text-align: center;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
         button {
             padding: 10px 20px;
             font-size: 16px;
             cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
         }
-        #timeDisplay {
+        button:hover {
+            background-color: #45a049;
+        }
+        .display {
             margin-top: 20px;
-            font-size: 24px;
-            font-weight: bold;
+            font-size: 18px;
+        }
+        .display p {
+            margin: 10px 0;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <button onclick="showTime()">Show Current Time</button>
-        <div id="timeDisplay"></div>
+        <button onclick="updateDisplay()">Update Information</button>
+        <div class="display">
+            <p id="timeDisplay"></p>
+            <p id="weatherDisplay"></p>
+            <p id="stockDisplay"></p>
+        </div>
     </div>
 
     <script>
+        function updateDisplay() {
+            showTime();
+            showWeather();
+            showStockPrice();
+        }
+
         function showTime() {
             const now = new Date();
             const timeString = now.toLocaleTimeString();
-            document.getElementById('timeDisplay').textContent = timeString;
+            document.getElementById('timeDisplay').textContent = `Current Time: ${timeString}`;
+        }
+
+        function showWeather() {
+            // Simulating an API call to get weather data
+            const temperature = Math.floor(Math.random() * (30 - 10 + 1)) + 10; // Random temp between 10°C and 30°C
+            document.getElementById('weatherDisplay').textContent = `Temperature in Stockholm: ${temperature}°C`;
+        }
+
+        function showStockPrice() {
+            // Simulating an API call to get stock price
+            const stockPrice = (Math.random() * (100 - 50) + 50).toFixed(2); // Random price between $50 and $100
+            document.getElementById('stockDisplay').textContent = `Trimble Share Price: $${stockPrice}`;
         }
     </script>
 </body>
