@@ -1,7 +1,46 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Display</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            text-align: center;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #timeDisplay {
+            margin-top: 20px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+    </style>
+</head>
 <body>
-<h1>Hello Jonas</h1>
-<p>I'm hosted with GitHub Pages.</p>
+    <div class="container">
+        <button onclick="showTime()">Show Current Time</button>
+        <div id="timeDisplay"></div>
+    </div>
+
+    <script>
+        function showTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            document.getElementById('timeDisplay').textContent = timeString;
+        }
+    </script>
 </body>
 </html>
