@@ -3,79 +3,501 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Time, Weather, and Stock Display</title>
+    <title>Trimble (TRMB) Share Price</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
-            height: 100vh;
-            margin: 0;
+            padding: 20px;
             background-color: #f0f0f0;
         }
-        .container {
+        #price-container, #chart-container, #combined-chart-container, #nasdaq-chart-container {
             text-align: center;
-            background-color: white;
             padding: 20px;
+            background-color: white;
             border-radius: 10px;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            width: 80%;
+            max-width: 800px;
         }
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
+        #price, #exchange-rate {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+            margin: 5px 0;
         }
-        button:hover {
-            background-color: #45a049;
+        #datetime {
+            font-size: 1em;
+            color: #666;
+            margin-top: 5px;
         }
-        .display {
-            margin-top: 20px;
-            font-size: 18px;
+        canvas {
+            width: 100% !important;
+            height: auto !important;
         }
-        .display p {
-            margin: 10px 0;
+        #nasdaq-chart-container {
+            text-align: center;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            width: 80%;
+            max-width: 800px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <button onclick="updateDisplay()">Update Information</button>
-        <div class="display">
-            <p id="timeDisplay"></p>
-            <p id="weatherDisplay"></p>
-            <p id="stockDisplay"></p>
-        </div>
+    <div id="price-container">
+        <div id="price">Loading...</div>
+        <div id="exchange-rate">Loading exchange rate...</div>
+        <div id="datetime"></div>
+    </div>
+    <div id="combined-chart-container">
+        <canvas id="combinedChart"></canvas>
+    </div>
+    <div id="chart-container">
+        <canvas id="priceChart"></canvas>
+    </div>
+    <div id="nasdaq-chart-container">
+        <canvas id="nasdaqChart"></canvas>
     </div>
 
     <script>
-        function updateDisplay() {
-            showTime();
-            showWeather();
-            showStockPrice();
+        async function fetchStockData() {
+            const symbol = 'TRMB';
+            const range = '3mo';
+            const interval = '1d';
+            const apiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=${range}&interval=${interval}`;
+
+            try {
+                const response = await fetch(`https://corsproxy.io/?${encodeURIComponent(apiUrl)}`);
+                const data = await response.json();
+                console.log('Stock API Response:', data); // For debugging
+
+                if (data.chart && data.chart.result && data.chart.result[0]) {
+                    const result = data.chart.result[0];
+                    const currentPrice = result.meta.regularMarketPrice.toFixed(2);
+                    document.getElementById('price').textContent = `TRMB    $${currentPrice}`;
+
+                    // Get current date and time for Stockholm
+                    const stockholmTime = new Date().toLocaleString('en-US', {
+                        timeZone: 'Europe/Stockholm',
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false
+                    });
+
+                    const formattedDateTime = stockholmTime.replace(/(\d+)\/(\d+)\/(\d+),/, '$3-$1-$2').replace(/,/, '');
+                    document.getElementById('datetime').textContent = formattedDateTime;
+
+                    const timestamps = result.timestamp;
+                    const prices = result.indicators.quote[0].close;
+
+                    // Fetch exchange rate data
+                    const exchangeRates = await fetchExchangeRates(timestamps[0], timestamps[timestamps.length - 1]);
+                    
+                    // Fetch NASDAQ data
+                    const nasdaqData = await fetchNasdaqData(timestamps[0], timestamps[timestamps.length - 1]);
+                    
+                    createChart(timestamps, prices, exchangeRates);
+                    createCombinedChart(timestamps, prices, exchangeRates);
+                    createNasdaqChart(timestamps, prices, nasdaqData);
+                } else {
+                    throw new Error('Unable to fetch the stock data');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('price').textContent = 'Error fetching data';
+                document.getElementById('exchange-rate').textContent = 'Error fetching exchange rate';
+                document.getElementById('datetime').textContent = '';
+            }
         }
 
-        function showTime() {
-            const now = new Date();
-            const timeString = now.toLocaleTimeString();
-            document.getElementById('timeDisplay').textContent = `Current Time: ${timeString}`;
+        async function fetchExchangeRates(startTimestamp, endTimestamp) {
+            const symbol = 'SEK=X';
+            const range = '3mo';
+            const interval = '1d';
+            const apiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=${range}&interval=${interval}`;
+
+            try {
+                const response = await fetch(`https://corsproxy.io/?${encodeURIComponent(apiUrl)}`);
+                const data = await response.json();
+                console.log('Exchange Rate API Response:', data); // For debugging
+
+                if (data.chart && data.chart.result && data.chart.result[0]) {
+                    const result = data.chart.result[0];
+                    const timestamps = result.timestamp;
+                    const rates = result.indicators.quote[0].close;
+
+                    // Display current exchange rate
+                    const currentRate = result.meta.regularMarketPrice.toFixed(2);
+                    document.getElementById('exchange-rate').textContent = `1 USD = ${currentRate} SEK`;
+
+                    // Create an object with dates as keys and rates as values
+                    const exchangeRates = {};
+                    timestamps.forEach((ts, index) => {
+                        const date = new Date(ts * 1000).toISOString().split('T')[0];
+                        exchangeRates[date] = { SEK: rates[index] };
+                    });
+
+                    return exchangeRates;
+                } else {
+                    throw new Error('Unable to fetch the exchange rate data');
+                }
+            } catch (error) {
+                console.error('Error fetching exchange rates:', error);
+                document.getElementById('exchange-rate').textContent = 'Error fetching exchange rate';
+                document.getElementById('datetime').textContent = '';
+                return null;
+            }
         }
 
-        function showWeather() {
-            // Simulating an API call to get weather data
-            const temperature = Math.floor(Math.random() * (30 - 10 + 1)) + 10; // Random temp between 10°C and 30°C
-            document.getElementById('weatherDisplay').textContent = `Temperature in Stockholm: ${temperature}°C`;
+        async function fetchNasdaqData(startTimestamp, endTimestamp) {
+            const symbol = '^IXIC';
+            const range = '3mo';
+            const interval = '1d';
+            const apiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=${range}&interval=${interval}`;
+
+            try {
+                const response = await fetch(`https://corsproxy.io/?${encodeURIComponent(apiUrl)}`);
+                const data = await response.json();
+                console.log('NASDAQ API Response:', data);
+
+                if (data.chart && data.chart.result && data.chart.result[0]) {
+                    const result = data.chart.result[0];
+                    const timestamps = result.timestamp;
+                    const prices = result.indicators.quote[0].close;
+
+                    return timestamps.map((ts, index) => ({
+                        x: new Date(ts * 1000),
+                        y: prices[index]
+                    }));
+                } else {
+                    throw new Error('Unable to fetch the NASDAQ data');
+                }
+            } catch (error) {
+                console.error('Error fetching NASDAQ data:', error);
+                return null;
+            }
         }
 
-        function showStockPrice() {
-            // Simulating an API call to get stock price
-            const stockPrice = (Math.random() * (100 - 50) + 50).toFixed(2); // Random price between $50 and $100
-            document.getElementById('stockDisplay').textContent = `Trimble Share Price: $${stockPrice}`;
+        function createChart(timestamps, prices, exchangeRates) {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            
+            // Calculate average price
+            const averagePrice = prices.reduce((sum, price) => sum + price, 0) / prices.length;
+            
+            // Prepare data for chart
+            const chartData = timestamps.map((ts, index) => {
+                const date = new Date(ts * 1000);
+                const dateString = date.toISOString().split('T')[0];
+                return {
+                    x: date,
+                    y: prices[index],
+                    exchangeRate: exchangeRates && exchangeRates[dateString] ? exchangeRates[dateString].SEK : null
+                };
+            });
+
+            // Filter out any null exchange rates
+            const exchangeRateData = chartData
+                .filter(item => item.exchangeRate !== null)
+                .map(item => ({x: item.x, y: item.exchangeRate}));
+
+            // Calculate average exchange rate
+            const averageExchangeRate = exchangeRateData.reduce((sum, item) => sum + item.y, 0) / exchangeRateData.length;
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'TRMB',
+                        data: chartData,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1,
+                        yAxisID: 'y'
+                    }, {
+                        label: 'Average Price',
+                        data: [{x: new Date(timestamps[0] * 1000), y: averagePrice}, 
+                               {x: new Date(timestamps[timestamps.length - 1] * 1000), y: averagePrice}],
+                        borderColor: 'rgb(75, 192, 192)',
+                        borderDash: [5, 5],
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        yAxisID: 'y'
+                    }, {
+                        label: 'USD → SEK ',
+                        data: exchangeRateData,
+                        borderColor: 'rgb(255, 99, 132)',
+                        tension: 0.1,
+                        yAxisID: 'y1'
+                    }, {
+                        label: 'Average Exchange Rate',
+                        data: [{x: new Date(timestamps[0] * 1000), y: averageExchangeRate}, 
+                               {x: new Date(timestamps[timestamps.length - 1] * 1000), y: averageExchangeRate}],
+                        borderColor: 'rgb(255, 99, 132)',
+                        borderDash: [5, 5],
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        yAxisID: 'y1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'month',
+                                displayFormats: {
+                                    month: 'MMM d'
+                                }
+                            },
+                            title: {
+                                display: false
+                            },
+                            ticks: {
+                                callback: function(value, index, values) {
+                                    const date = new Date(value);
+                                    if (date.getDate() === 1) {
+                                        return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+                                    }
+                                    return '';
+                                }
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'TRMB [USD]'
+                            },
+                            position: 'left'
+                        },
+                        y1: {
+                            title: {
+                                display: true,
+                                text: 'USD → SEK'
+                            },
+                            position: 'right',
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                filter: function(item, chart) {
+                                    // Hide both "Average Price" and "Average Exchange Rate" from the legend
+                                    return item.text !== 'Average Price' && item.text !== 'Average Exchange Rate';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
         }
+
+        function createCombinedChart(timestamps, prices, exchangeRates) {
+            const ctx = document.getElementById('combinedChart').getContext('2d');
+            
+            // Prepare data for chart
+            const chartData = timestamps.map((ts, index) => {
+                const date = new Date(ts * 1000);
+                const dateString = date.toISOString().split('T')[0];
+                const exchangeRate = exchangeRates && exchangeRates[dateString] ? exchangeRates[dateString].SEK : null;
+                return {
+                    x: date,
+                    y: exchangeRate !== null ? prices[index] * exchangeRate : null
+                };
+            }).filter(item => item.y !== null);
+
+            // Calculate average
+            const average = chartData.reduce((sum, item) => sum + item.y, 0) / chartData.length;
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'TRMB Share Price in SEK',
+                        data: chartData,
+                        borderColor: 'yellow',
+                        backgroundColor: 'yellow',
+                        tension: 0.1
+                    }, {
+                        label: 'Average Price in SEK',
+                        data: [{x: chartData[0].x, y: average}, {x: chartData[chartData.length - 1].x, y: average}],
+                        borderColor: 'yellow',
+                        borderDash: [5, 5],
+                        borderWidth: 2,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'month',
+                                displayFormats: {
+                                    month: 'MMM d'
+                                }
+                            },
+                            title: {
+                                display: false
+                            },
+                            ticks: {
+                                callback: function(value, index, values) {
+                                    const date = new Date(value);
+                                    if (date.getDate() === 1) {
+                                        return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+                                    }
+                                    return '';
+                                }
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Price (SEK)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                filter: function(item, chart) {
+                                    // Hide the "Average Price in SEK" from the legend
+                                    return item.text !== 'Average Price in SEK';
+                                }
+                            }
+                        }
+                    }
+                },
+                plugins: [{
+                    beforeDraw: (chart) => {
+                        const ctx = chart.canvas.getContext('2d');
+                        ctx.save();
+                        ctx.globalCompositeOperation = 'destination-over';
+                        
+                        // Create rounded rectangle
+                        const width = chart.width;
+                        const height = chart.height;
+                        const radius = 20; // Adjust this value to change the corner radius
+
+                        ctx.beginPath();
+                        ctx.moveTo(radius, 0);
+                        ctx.lineTo(width - radius, 0);
+                        ctx.quadraticCurveTo(width, 0, width, radius);
+                        ctx.lineTo(width, height - radius);
+                        ctx.quadraticCurveTo(width, height, width - radius, height);
+                        ctx.lineTo(radius, height);
+                        ctx.quadraticCurveTo(0, height, 0, height - radius);
+                        ctx.lineTo(0, radius);
+                        ctx.quadraticCurveTo(0, 0, radius, 0);
+                        ctx.closePath();
+
+                        ctx.fillStyle = 'lightblue';
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }, {
+                    id: 'customCanvasBackgroundColor',
+                    beforeDraw: (chart, args, options) => {
+                        const {ctx} = chart;
+                        ctx.save();
+                        ctx.globalCompositeOperation = 'destination-over';
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, chart.width, chart.height);
+                        ctx.restore();
+                    },
+                }]
+            });
+        }
+
+        function createNasdaqChart(timestamps, trmbPrices, nasdaqData) {
+            const ctx = document.getElementById('nasdaqChart').getContext('2d');
+            
+            const trmbData = timestamps.map((ts, index) => ({
+                x: new Date(ts * 1000),
+                y: trmbPrices[index]
+            }));
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'NASDAQ',
+                        data: nasdaqData,
+                        borderColor: 'black',
+                        backgroundColor: 'black',
+                        yAxisID: 'y',
+                        tension: 0.1
+                    }, {
+                        label: 'TRMB',
+                        data: trmbData,
+                        borderColor: 'blue',
+                        backgroundColor: 'blue',
+                        yAxisID: 'y1',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'month',
+                                displayFormats: {
+                                    month: 'MMM d'
+                                }
+                            },
+                            title: {
+                                display: false
+                            },
+                            ticks: {
+                                callback: function(value, index, values) {
+                                    const date = new Date(value);
+                                    if (date.getDate() === 1) {
+                                        return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+                                    }
+                                    return '';
+                                }
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'NASDAQ'
+                            },
+                            position: 'left',
+                        },
+                        y1: {
+                            title: {
+                                display: true,
+                                text: 'TRMB Price'
+                            },
+                            position: 'right',
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        fetchStockData();
     </script>
 </body>
 </html>
