@@ -40,16 +40,6 @@
             width: 100% !important;
             height: auto !important;
         }
-        #nasdaq-chart-container {
-            text-align: center;
-            padding: 20px;
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            width: 80%;
-            max-width: 800px;
-        }
     </style>
 </head>
 <body>
@@ -108,8 +98,8 @@
                     // Fetch NASDAQ data
                     const nasdaqData = await fetchNasdaqData(timestamps[0], timestamps[timestamps.length - 1]);
                     
-                    createChart(timestamps, prices, exchangeRates);
                     createCombinedChart(timestamps, prices, exchangeRates);
+                    createChart(timestamps, prices, exchangeRates);
                     createNasdaqChart(timestamps, prices, nasdaqData);
                 } else {
                     throw new Error('Unable to fetch the stock data');
@@ -277,18 +267,26 @@
                         y: {
                             title: {
                                 display: true,
-                                text: 'TRMB [USD]'
+                                text: 'TRMB [USD]',
+                                color: 'rgb(75, 192, 192)'  // Match the TRMB line color
                             },
-                            position: 'left'
+                            position: 'left',
+                            ticks: {
+                                color: 'rgb(75, 192, 192)'  // Match the TRMB line color
+                            }
                         },
                         y1: {
                             title: {
                                 display: true,
-                                text: 'USD → SEK'
+                                text: 'USD → SEK',
+                                color: 'rgb(255, 99, 132)'  // Match the exchange rate line color
                             },
                             position: 'right',
                             grid: {
                                 drawOnChartArea: false
+                            },
+                            ticks: {
+                                color: 'rgb(255, 99, 132)'  // Match the exchange rate line color
                             }
                         }
                     },
@@ -320,25 +318,43 @@
                 };
             }).filter(item => item.y !== null);
 
-            // Calculate average
-            const average = chartData.reduce((sum, item) => sum + item.y, 0) / chartData.length;
+            // Calculate average price in SEK
+            const averagePriceSEK = chartData.reduce((sum, item) => sum + item.y, 0) / chartData.length;
+
+            // Calculate percent deviation and merge with price data
+            const mergedData = chartData.map(item => ({
+                x: item.x,
+                y: item.y,
+                y1: ((item.y / averagePriceSEK) - 1) * 100
+            }));
+
+            // Calculate y-axis ranges
+            const minPrice = Math.min(...mergedData.map(item => item.y));
+            const maxPrice = Math.max(...mergedData.map(item => item.y));
+            const minPercent = Math.min(...mergedData.map(item => item.y1));
+            const maxPercent = Math.max(...mergedData.map(item => item.y1));
 
             new Chart(ctx, {
                 type: 'line',
                 data: {
                     datasets: [{
                         label: 'TRMB Share Price in SEK',
-                        data: chartData,
+                        data: mergedData,
                         borderColor: 'yellow',
                         backgroundColor: 'yellow',
-                        tension: 0.1
+                        tension: 0.1,
+                        yAxisID: 'y'
                     }, {
-                        label: 'Average Price in SEK',
-                        data: [{x: chartData[0].x, y: average}, {x: chartData[chartData.length - 1].x, y: average}],
-                        borderColor: 'yellow',
+                        label: 'Three-month Average',
+                        data: [
+                            { x: mergedData[0].x, y: averagePriceSEK },
+                            { x: mergedData[mergedData.length - 1].x, y: averagePriceSEK }
+                        ],
+                        borderColor: 'grey',
                         borderDash: [5, 5],
                         borderWidth: 2,
-                        pointRadius: 0
+                        pointRadius: 0,
+                        yAxisID: 'y'
                     }]
                 },
                 options: {
@@ -368,55 +384,75 @@
                         y: {
                             title: {
                                 display: true,
-                                text: 'Price (SEK)'
+                                text: 'Price (SEK)',
+                                color: 'yellow'  // Match the TRMB line color
+                            },
+                            position: 'left',
+                            min: minPrice,
+                            max: maxPrice,
+                            ticks: {
+                                callback: function(value, index, values) {
+                                    if (index === 0 || index === values.length - 1) {
+                                        return '';
+                                    }
+                                    return value.toFixed(0);
+                                },
+                                color: 'yellow'  // Match the TRMB line color
+                            }
+                        },
+                        y1: {
+                            title: {
+                                display: true,
+                                text: '% Deviation',
+                                color: 'yellow'  // Match the TRMB line color
+                            },
+                            position: 'right',
+                            min: minPercent,
+                            max: maxPercent,
+                            grid: {
+                                drawOnChartArea: false
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    if (Number.isInteger(value)) {
+                                        return value > 0 ? `+${value}%` : `${value}%`;
+                                    }
+                                    return '';
+                                },
+                                color: 'yellow'  // Match the TRMB line color
                             }
                         }
                     },
                     plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    if (context.dataset.label === 'Three-month Average') {
+                                        return `${context.dataset.label}: ${context.parsed.y.toFixed(2)} SEK`;
+                                    }
+                                    const price = context.raw.y.toFixed(2);
+                                    const percent = context.raw.y1.toFixed(2);
+                                    return `Price: ${price} SEK, Deviation: ${percent > 0 ? '+' : ''}${percent}%`;
+                                }
+                            }
+                        },
                         legend: {
                             labels: {
                                 filter: function(item, chart) {
-                                    // Hide the "Average Price in SEK" from the legend
-                                    return item.text !== 'Average Price in SEK';
+                                    // Hide the "Three-month Average" from the legend
+                                    return item.text !== 'Three-month Average';
                                 }
                             }
                         }
                     }
                 },
                 plugins: [{
-                    beforeDraw: (chart) => {
-                        const ctx = chart.canvas.getContext('2d');
-                        ctx.save();
-                        ctx.globalCompositeOperation = 'destination-over';
-                        
-                        // Create rounded rectangle
-                        const width = chart.width;
-                        const height = chart.height;
-                        const radius = 20; // Adjust this value to change the corner radius
-
-                        ctx.beginPath();
-                        ctx.moveTo(radius, 0);
-                        ctx.lineTo(width - radius, 0);
-                        ctx.quadraticCurveTo(width, 0, width, radius);
-                        ctx.lineTo(width, height - radius);
-                        ctx.quadraticCurveTo(width, height, width - radius, height);
-                        ctx.lineTo(radius, height);
-                        ctx.quadraticCurveTo(0, height, 0, height - radius);
-                        ctx.lineTo(0, radius);
-                        ctx.quadraticCurveTo(0, 0, radius, 0);
-                        ctx.closePath();
-
-                        ctx.fillStyle = 'lightblue';
-                        ctx.fill();
-                        ctx.restore();
-                    }
-                }, {
                     id: 'customCanvasBackgroundColor',
                     beforeDraw: (chart, args, options) => {
                         const {ctx} = chart;
                         ctx.save();
                         ctx.globalCompositeOperation = 'destination-over';
-                        ctx.fillStyle = 'white';
+                        ctx.fillStyle = 'lightblue';
                         ctx.fillRect(0, 0, chart.width, chart.height);
                         ctx.restore();
                     },
@@ -478,18 +514,26 @@
                         y: {
                             title: {
                                 display: true,
-                                text: 'NASDAQ'
+                                text: 'NASDAQ',
+                                color: 'black'  // Match the NASDAQ line color
                             },
                             position: 'left',
+                            ticks: {
+                                color: 'black'  // Match the NASDAQ line color
+                            }
                         },
                         y1: {
                             title: {
                                 display: true,
-                                text: 'TRMB Price'
+                                text: 'TRMB Price',
+                                color: 'blue'  // Match the TRMB line color
                             },
                             position: 'right',
                             grid: {
                                 drawOnChartArea: false
+                            },
+                            ticks: {
+                                color: 'blue'  // Match the TRMB line color
                             }
                         }
                     }
@@ -501,3 +545,4 @@
     </script>
 </body>
 </html>
+
