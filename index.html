@@ -57,8 +57,8 @@
     </div>
     <div id="time-period-container">
         <select id="time-period-select">
-            <option value="3mo" selected>3 months</option>
-            <option value="1y">1 year</option>
+            <option value="3mo">3 months (corrupt data?)</option>
+            <option value="1y" selected>1 year</option>
             <option value="3y">3 years</option>
         </select>
     </div>
@@ -129,7 +129,7 @@
             };
         }
 
-        async function fetchStockData(timePeriod = '3mo') {
+        async function fetchStockData(timePeriod = '1y') {
             const symbol = 'TRMB';
             const interval = timePeriod === '3mo' ? '1d' : '1wk';
             const apiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=${timePeriod}&interval=${interval}`;
@@ -193,7 +193,7 @@
 
         async function fetchExchangeRates(startTimestamp, endTimestamp, timePeriod) {
             const symbol = 'SEK=X';
-            const interval = timePeriod === '3mo' ? '1d' : '1d';  // Always use daily data
+            const interval = timePeriod === '3mo' ? '1d' : '1d'; // Always use daily data
             const apiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=${timePeriod}&interval=${interval}`;
 
             try {
@@ -221,15 +221,15 @@
                         exchangeRates[date] = { SEK: lastValidRate };
                     });
 
-                    console.log('Exchange rates before filling:', exchangeRates);
-
-                    // Fill in any missing dates
+                    // Fill in missing dates with the last valid rate
                     const start = new Date(startTimestamp * 1000);
                     const end = new Date(endTimestamp * 1000);
                     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
                         const dateString = d.toISOString().split('T')[0];
                         if (!exchangeRates[dateString]) {
                             exchangeRates[dateString] = { SEK: lastValidRate };
+                        } else if (exchangeRates[dateString].SEK === null) {
+                            exchangeRates[dateString].SEK = lastValidRate;
                         }
                     }
 
@@ -603,8 +603,6 @@
             let pricesText = '';
             let exchangeRatesText = '';
 
-            let missingDates = [];
-
             // Format and add data to the columns
             timestamps.forEach((timestamp, index) => {
                 const date = new Date(timestamp * 1000);
@@ -613,11 +611,11 @@
                 timestampsText += dateString + '\n';
                 pricesText += prices[index].toFixed(2) + '\n';
                 
-                if (exchangeRates && exchangeRates[dateString]) {
+                if (exchangeRates && exchangeRates[dateString] && exchangeRates[dateString].SEK !== null) {
                     exchangeRatesText += exchangeRates[dateString].SEK.toFixed(4) + '\n';
                 } else {
                     exchangeRatesText += 'N/A\n';
-                    missingDates.push(dateString);
+                    console.warn(`Missing exchange rate for date: ${dateString}`);
                 }
             });
 
@@ -625,10 +623,6 @@
             timestampsElement.textContent = timestampsText;
             pricesElement.textContent = pricesText;
             exchangeRatesElement.textContent = exchangeRatesText;
-
-            if (missingDates.length > 0) {
-                console.log('Dates with missing exchange rates:', missingDates);
-            }
         }
 
         // Add event listener for the dropdown
@@ -636,8 +630,8 @@
             fetchStockData(this.value);
         });
 
-        // Initial fetch with default 3 months
-        fetchStockData();
+        // Initial fetch with default 1 year
+        fetchStockData('1y');
     </script>
 </body>
 </html>
