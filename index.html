@@ -81,6 +81,10 @@
             <h3>Prices</h3>
             <pre id="prices-data" style="text-align: left;"></pre>
         </div>
+        <div id="exchange-rates-column">
+            <h3>Exchange Rates</h3>
+            <pre id="exchange-rates-data" style="text-align: left;"></pre>
+        </div>
     </div>
 
     <script>
@@ -170,7 +174,7 @@
                     nasdaqChart = createNasdaqChart(timestamps, prices, nasdaqData, xAxisConfig);
 
                     // Update the data columns
-                    updateDataColumns(timestamps, prices);
+                    updateDataColumns(timestamps, prices, exchangeRates);
                 } else {
                     throw new Error('Unable to fetch the stock data');
                 }
@@ -189,7 +193,7 @@
 
         async function fetchExchangeRates(startTimestamp, endTimestamp, timePeriod) {
             const symbol = 'SEK=X';
-            const interval = timePeriod === '3mo' ? '1d' : '1wk';
+            const interval = timePeriod === '3mo' ? '1d' : '1d';  // Always use daily data
             const apiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=${timePeriod}&interval=${interval}`;
 
             try {
@@ -217,46 +221,19 @@
                         exchangeRates[date] = { SEK: lastValidRate };
                     });
 
-                    // Interpolate missing values
-                    let prevDate = null;
-                    let prevRate = null;
-                    Object.keys(exchangeRates).sort().forEach(date => {
-                        if (exchangeRates[date].SEK === null) {
-                            if (prevRate !== null) {
-                                // Find next valid rate
-                                let nextDate = null;
-                                let nextRate = null;
-                                for (let futureDate of Object.keys(exchangeRates).sort()) {
-                                    if (futureDate > date && exchangeRates[futureDate].SEK !== null) {
-                                        nextDate = futureDate;
-                                        nextRate = exchangeRates[futureDate].SEK;
-                                        break;
-                                    }
-                                }
-                                if (nextRate !== null) {
-                                    // Linear interpolation
-                                    const prevTimestamp = new Date(prevDate).getTime();
-                                    const nextTimestamp = new Date(nextDate).getTime();
-                                    const currentTimestamp = new Date(date).getTime();
-                                    const ratio = (currentTimestamp - prevTimestamp) / (nextTimestamp - prevTimestamp);
-                                    exchangeRates[date].SEK = prevRate + (nextRate - prevRate) * ratio;
-                                } else {
-                                    // If no future valid rate, use the last known rate
-                                    exchangeRates[date].SEK = prevRate;
-                                }
-                            } else {
-                                // If no previous valid rate, find the first valid rate and use it
-                                for (let futureDate of Object.keys(exchangeRates).sort()) {
-                                    if (exchangeRates[futureDate].SEK !== null) {
-                                        exchangeRates[date].SEK = exchangeRates[futureDate].SEK;
-                                        break;
-                                    }
-                                }
-                            }
+                    console.log('Exchange rates before filling:', exchangeRates);
+
+                    // Fill in any missing dates
+                    const start = new Date(startTimestamp * 1000);
+                    const end = new Date(endTimestamp * 1000);
+                    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                        const dateString = d.toISOString().split('T')[0];
+                        if (!exchangeRates[dateString]) {
+                            exchangeRates[dateString] = { SEK: lastValidRate };
                         }
-                        prevDate = date;
-                        prevRate = exchangeRates[date].SEK;
-                    });
+                    }
+
+                    console.log('Exchange rates after filling:', exchangeRates);
 
                     return exchangeRates;
                 } else {
@@ -617,23 +594,41 @@
             return nasdaqChart;
         }
 
-        function updateDataColumns(timestamps, prices) {
+        function updateDataColumns(timestamps, prices, exchangeRates) {
             const timestampsElement = document.getElementById('timestamps-data');
             const pricesElement = document.getElementById('prices-data');
+            const exchangeRatesElement = document.getElementById('exchange-rates-data');
 
             let timestampsText = '';
             let pricesText = '';
+            let exchangeRatesText = '';
+
+            let missingDates = [];
 
             // Format and add data to the columns
             timestamps.forEach((timestamp, index) => {
                 const date = new Date(timestamp * 1000);
-                timestampsText += date.toISOString().split('T')[0] + '\n';
+                const dateString = date.toISOString().split('T')[0];
+
+                timestampsText += dateString + '\n';
                 pricesText += prices[index].toFixed(2) + '\n';
+                
+                if (exchangeRates && exchangeRates[dateString]) {
+                    exchangeRatesText += exchangeRates[dateString].SEK.toFixed(4) + '\n';
+                } else {
+                    exchangeRatesText += 'N/A\n';
+                    missingDates.push(dateString);
+                }
             });
 
             // Update the content of the pre elements
             timestampsElement.textContent = timestampsText;
             pricesElement.textContent = pricesText;
+            exchangeRatesElement.textContent = exchangeRatesText;
+
+            if (missingDates.length > 0) {
+                console.log('Dates with missing exchange rates:', missingDates);
+            }
         }
 
         // Add event listener for the dropdown
