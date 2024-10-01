@@ -57,7 +57,7 @@
     </div>
     <div id="time-period-container">
         <select id="time-period-select">
-            <option value="6mo">6 months</option> <!-- Changed from 3mo to 6mo -->
+            <option value="3mo">3 months (corrupt data?)</option>
             <option value="1y" selected>1 year</option>
             <option value="3y">3 years</option>
         </select>
@@ -67,6 +67,7 @@
     </div>
     <div id="chart-container">
         <canvas id="priceChart"></canvas>
+        <button id="toggle-y-axis">Toggle Y-Axis</button> <!-- Changed button ID -->
     </div>
     <div id="nasdaq-chart-container">
         <canvas id="nasdaqChart"></canvas>
@@ -628,6 +629,25 @@
         // Add event listener for the dropdown
         document.getElementById('time-period-select').addEventListener('change', function() {
             fetchStockData(this.value);
+        });
+
+        let isYAxisZeroed = false; // State variable to track the toggle state
+
+        // Add event listener for the toggle button
+        document.getElementById('toggle-y-axis').addEventListener('click', function() {
+            if (priceChart) {
+                if (isYAxisZeroed) {
+                    // Reset to auto scale
+                    priceChart.options.scales.y.min = null; 
+                    priceChart.options.scales.y1.min = null; 
+                } else {
+                    // Set both y-axes to start at 0
+                    priceChart.options.scales.y.min = 0; 
+                    priceChart.options.scales.y1.min = 0; 
+                }
+                priceChart.update(); // Update the chart
+                isYAxisZeroed = !isYAxisZeroed; // Toggle the state
+            }
         });
 
         // Initial fetch with default 1 year
