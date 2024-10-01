@@ -57,7 +57,7 @@
     </div>
     <div id="time-period-container">
         <select id="time-period-select">
-            <option value="3mo">3 months (corrupt data?)</option>
+            <option value="6mo">6 months</option> <!-- Changed from 3mo to 6mo -->
             <option value="1y" selected>1 year</option>
             <option value="3y">3 years</option>
         </select>
@@ -71,6 +71,7 @@
     </div>
     <div id="nasdaq-chart-container">
         <canvas id="nasdaqChart"></canvas>
+        <button id="toggle-nasdaq-y-axis">Toggle Y-Axis</button> <!-- Added toggle button for NASDAQ chart -->
     </div>
     
     <div id="data-container" style="display: flex; justify-content: center; margin-top: 20px;">
@@ -647,6 +648,25 @@
                 }
                 priceChart.update(); // Update the chart
                 isYAxisZeroed = !isYAxisZeroed; // Toggle the state
+            }
+        });
+
+        let isNasdaqYAxisZeroed = false; // State variable to track the toggle state for NASDAQ chart
+
+        // Add event listener for the toggle button for NASDAQ chart
+        document.getElementById('toggle-nasdaq-y-axis').addEventListener('click', function() {
+            if (nasdaqChart) {
+                if (isNasdaqYAxisZeroed) {
+                    // Reset to auto scale
+                    nasdaqChart.options.scales.y.min = null; 
+                    nasdaqChart.options.scales.y1.min = null; 
+                } else {
+                    // Set both y-axes to start at 0
+                    nasdaqChart.options.scales.y.min = 0; 
+                    nasdaqChart.options.scales.y1.min = 0; 
+                }
+                nasdaqChart.update(); // Update the chart
+                isNasdaqYAxisZeroed = !isNasdaqYAxisZeroed; // Toggle the state
             }
         });
 
