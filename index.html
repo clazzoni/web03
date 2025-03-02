@@ -35,6 +35,7 @@
             font-size: 1em;
             color: #666;
             margin-top: 5px;
+            white-space: pre; /* Preserve white spaces */
         }
         canvas {
             width: 100% !important;
@@ -163,7 +164,7 @@
                     });
 
                     const formattedDateTime = stockholmTime.replace(/(\d+)\/(\d+)\/(\d+),/, '$3-$1-$2').replace(/,/, '');
-                    document.getElementById('datetime').textContent = formattedDateTime;
+                    document.getElementById('datetime').textContent = formattedDateTime + '          ' + 'https://bit.ly/trmbsek';
 
                     const timestamps = result.timestamp;
                     const prices = result.indicators.quote[0].close;
